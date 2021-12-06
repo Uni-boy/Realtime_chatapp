@@ -3,7 +3,7 @@ import Topbar from "../../components/topbar/Topbar"
 import Conversation from "../../components/conversations/Conversation"
 import Message from "../../components/message/Message"
 import ChatOnline from "../../components/chatOnline/ChatOnline"
-import { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { AuthContext } from "../../context/AuthContext"
 import axios from "axios"
 
@@ -12,7 +12,9 @@ export default function Messenger() {
     const [conversations, setConversations] = useState([]);
     const [currentChat, setCurrentChat] = useState(null);
     const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState([]);
     const {user} = useContext(AuthContext);
+    const scrollRef = useRef();
 
     useEffect(()=>{
         const getConversations = async ()=>{
@@ -26,7 +28,39 @@ export default function Messenger() {
         getConversations();
     },[user._id]);
 
-    console.log(user);
+    useEffect(()=>{
+        const getMessages = async ()=>{
+            try{
+                const res = await axios.get("/messages/"+currentChat?._id);
+                setMessages(res.data);
+            }catch(err){
+                console.log(err);
+            }    
+        };
+        getMessages();
+    },[currentChat]);
+
+    const handleSubmit = async (e)=>{
+        e.preventDefault();
+        const message = {
+            sender: user._id,
+            text: newMessage,
+            conversationId: currentChat._id,
+        };
+
+        try{
+            const res = await axios.post("/messages", message);
+            setMessages([...messages, res.data])
+            setNewMessage("")
+        }catch(err){
+            console.log(err);
+        }
+    };
+
+    useEffect(()=>{
+        scrollRef.current?.scrollIntoView({behavior:"smooth"});
+    },[messages])
+
     return(
         <>
         <Topbar />
@@ -35,27 +69,29 @@ export default function Messenger() {
                 <div className="chatMenuWrapper">
                     <input placeholder="Search for friends" className="ChatMenuInput" />
                     {conversations.map((c)=> (
-                        <Conversation conversation={c} currentUser ={user}/>
+                        <div onClick={()=>setCurrentChat(c)}>
+                            <Conversation conversation={c} currentUser ={user}/>
+                        </div>
                     ))}
                 </div>
             </div>
             <div className="chatBox">
                 <div className="chatBoxWrap">
+                    {
+                        currentChat ?
+                    (<>
                     <div className="chatBoxTop">
-                        <Message />
-                        <Message own={true}/>
-                        <Message />
-                        <Message />
-                        <Message />
-                        <Message />
-                        <Message />
-                        <Message />
-                        <Message />
+                        {messages.map(m=>(
+                            <div ref={scrollRef}>
+                                <Message message={m} own={m.sender === user._id}/>
+                            </div>
+                        ))}
+                        
                     </div>
                     <div className="chatBoxBottom">
-                        <textarea className="chatMessageInput" placeholder="write something..."></textarea>
-                        <button className="chatSubmitButton">Send</button>
-                    </div>
+                        <textarea className="chatMessageInput" placeholder="write something..." onChange={(e) => setNewMessage(e.target.value)} value={newMessage}></textarea>
+                        <button className="chatSubmitButton" onClick={handleSubmit}>Send</button>
+                    </div></>) : (<span className="noConversationText">Open a conversation to start a chat.</span>)}
                 </div>
             </div>
             <div className="chatOnline">
